@@ -1,11 +1,15 @@
 import pandas as pd
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
+import csv
 
 class DataSet:
 
     def __init__(self, datafile):
-        self.data = pd.read_csv(datafile, encoding='utf-8', float_precision='high')
+        self.filename = datafile
+        if self.filename.endswith('formatted.csv')==False:
+            self.format_file()
+        self.data = pd.read_csv(self.filename, encoding='utf-8', float_precision='high')
         self.data['LogPrice'] = np.log(self.data['Close'])
         self.data['LogReturns'] = self.data['LogPrice'].diff().fillna(0)
         self.data['DemeanedLogReturns'] = self.data['LogReturns'] - self.data['LogReturns'].mean()
@@ -23,5 +27,15 @@ class DataSet:
         if index < 0 or index >= len(self):
             raise IndexError("Index out of range")
         return self.training_data[index], self.test_data[index]
-
+    
+    def format_file(self):
+        unformatted_file = csv.reader(open(self.filename, 'r'))
+        new_file = open(self.filename.replace(".csv", "_formatted.csv"), 'w')
+        new_file.write("DateTime,Close\n")
+        for line in unformatted_file:
+            line = line[0].split("\t")
+            new_file.write(f"{line[0]}, {line[4]}\n")
+        self.filename = self.filename.replace(".csv", "_formatted.csv")
+        new_file = None
+        unformatted_file = None
     
