@@ -55,3 +55,8 @@ def run_walkforward_analysis(data):
         walk_forward_results.update_loss_profile(data.test_data[i], f_mean)
 
     return walk_forward_results
+
+if __name__ == "__main__":
+    data = DataSet('EURUSD30.csv')
+    results = run_walkforward_analysis(data)
+    metrics = results.get_metrics()
