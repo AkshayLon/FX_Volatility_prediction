@@ -4,6 +4,17 @@ from data_engine import DataSet
 import tensorflow as tf
 import gpflow
 
+class RevisedMeanFunction(gpflow.functions.MeanFunction):
+
+    def __init__(self, X, Y):
+        super().__init__()
+        self.mapping = dict(zip(X, Y))
+
+    def __call__(self, x):
+        x_values = x.numpy().flatten()
+        y = np.vectorize(self.mapping.get)(x_values)
+        return tf.convert_to_tensor(y.reshape(-1, 1), dtype=tf.float64)
+
 class ResultsObject:
 
     def __init__(self):
@@ -14,12 +25,12 @@ class ResultsObject:
         self.test_data = []
 
     def update_predictions(self, f_mean, f_var):
-        self.predicted_mean.append(f_mean.numpy().flatten())
-        self.predicted_std.append(np.sqrt(f_var.numpy().flatten()))
+        self.predicted_mean.append(f_mean)
+        self.predicted_std.append(np.sqrt(f_var))
 
     def update_loss_profile(self, test_set, f_mean):
         self.test_data.append(test_set)
-        mean_values = f_mean.numpy().flatten()
+        mean_values = f_mean
         self.loss_profile.append(np.mean(np.abs(test_set - mean_values)))
 
     def get_metrics(self):
@@ -46,7 +57,7 @@ def run_walkforward_analysis(data):
     current_X, current_Y = None, None
     prediction_window = None
     optim = gpflow.optimizers.Scipy()
-    for i in range(1):
+    for i in range(5):
         # Prepare training data for current iteration
         current_X = tf.convert_to_tensor(np.arange(10*i, (10*i)+50).reshape(-1, 1), dtype=tf.float64)
         current_Y = tf.convert_to_tensor(data.training_data[i].reshape(-1, 1), dtype=tf.float64)
@@ -57,9 +68,14 @@ def run_walkforward_analysis(data):
         prediction_window = tf.convert_to_tensor(np.arange((10*i)+50, (10*i)+110).reshape(-1, 1), dtype=tf.float64)
         optim.minimize(current_model.training_loss, current_model.trainable_variables)
         f_mean, f_var = current_model.predict_f(prediction_window)
-        walk_forward_results.update_predictions(f_mean.numpy().flatten()[:10], f_var.numpy().flatten()[:10])
 
-        # change mean function
+        # Update model performance
+        walk_forward_results.update_predictions(f_mean.numpy().flatten()[:10], f_var.numpy().flatten()[:10])
+        walk_forward_results.update_loss_profile(data.test_data[i], f_mean.numpy().flatten()[:10])
+
+        # change mean function for next iteration
+        new_mean_function = RevisedMeanFunction(prediction_window.numpy().flatten(), f_mean.numpy().flatten())
+        current_model.mean_function = new_mean_function
 
     return walk_forward_results
 
@@ -67,3 +83,4 @@ if __name__ == "__main__":
     data = DataSet('EURUSD30.csv')
     results = run_walkforward_analysis(data)
     metrics = results.get_metrics()
+    print(metrics['mean'])
