@@ -37,22 +37,29 @@ class ResultsObject:
 
 def run_walkforward_analysis(data):
     walk_forward_results = ResultsObject()
-    model = None
+    current_model = gpflow.models.GPR(
+        data=(tf.convert_to_tensor(np.zeros((1, 1)), dtype=tf.float64),
+              tf.convert_to_tensor(np.zeros((1, 1)), dtype=tf.float64)), 
+        kernel=gpflow.kernels.Matern32(),
+        mean_function=gpflow.mean_functions.Constant(0.0)
+    )
+    current_X, current_Y = None, None
+    prediction_window = None
     optim = gpflow.optimizers.Scipy()
-    X, Y, X_new = None, None, None
-    for i in range(5):
-        X = tf.convert_to_tensor(np.arange(10*i, (10*i)+50).reshape(-1, 1), dtype=tf.float64)
-        Y = tf.convert_to_tensor(data.training_data[i].reshape(-1, 1), dtype=tf.float64)
-        X_new = tf.convert_to_tensor(np.arange((10*i)+50, (10*i)+60).reshape(-1, 1), dtype=tf.float64)
+    for i in range(1):
+        # Prepare training data for current iteration
+        current_X = tf.convert_to_tensor(np.arange(10*i, (10*i)+50).reshape(-1, 1), dtype=tf.float64)
+        current_Y = tf.convert_to_tensor(data.training_data[i].reshape(-1, 1), dtype=tf.float64)
         walk_forward_results.x.append(np.arange((10*i)+50, (10*i)+60))
-        model = gpflow.models.GPR(
-            (X, Y),
-            kernel=gpflow.kernels.Matern32()
-        )
-        optim.minimize(model.training_loss, model.trainable_variables)
-        f_mean, f_var = model.predict_f(X_new)
-        walk_forward_results.update_predictions(f_mean, f_var)
-        walk_forward_results.update_loss_profile(data.test_data[i], f_mean)
+        current_model.data = (current_X, current_Y)
+
+        # Train model and get predictions
+        prediction_window = tf.convert_to_tensor(np.arange((10*i)+50, (10*i)+110).reshape(-1, 1), dtype=tf.float64)
+        optim.minimize(current_model.training_loss, current_model.trainable_variables)
+        f_mean, f_var = current_model.predict_f(prediction_window)
+        walk_forward_results.update_predictions(f_mean.numpy().flatten()[:10], f_var.numpy().flatten()[:10])
+
+        # change mean function
 
     return walk_forward_results
 
