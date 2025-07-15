@@ -1,3 +1,13 @@
+# Supress all warnings and logging messages from Tensorflow packages
+import warnings
+warnings.filterwarnings('ignore', category=UserWarning)
+
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+import logging
+logging.getLogger('tensorflow').setLevel(logging.ERROR)
+
+# Import necessary libraries
 import pandas as pd
 import numpy as np
 from data_engine import DataSet
@@ -14,7 +24,7 @@ class RevisedMeanFunction(gpflow.functions.MeanFunction):
         x_values = x.numpy().flatten()
         y = np.vectorize(self.mapping.get)(x_values)
         return tf.convert_to_tensor(y.reshape(-1, 1), dtype=tf.float64)
-
+    
 class ResultsObject:
 
     def __init__(self):
